@@ -10,6 +10,7 @@
 
 #include "read_input.hpp"
 #include "async.h"
+#include "retransmittor.hpp"
 
 namespace
 {
@@ -87,8 +88,6 @@ TEST(TEST_ASYNC, async_sinlge_thread)
         async::disconnect(h2);
     }
 
-//    async::wait();
-
     // context 1
     std::cout << "masks:" << std::endl;
     std::cout << std::string{"(bulk-" + std::to_string((unsigned long long)h1) + "-.*.log)"} << std::endl;
@@ -108,6 +107,38 @@ TEST(TEST_ASYNC, async_sinlge_thread)
     std::cout << std::string{"(bulk-" + std::to_string((unsigned long long)h2) + "-.*.log)"} << std::endl;
     ASSERT_TRUE(check(std::stringstream{"bulk: cmd5, cmd6, cmd7, cmd8, cmd9\n"},
                       "(bulk-" + std::to_string((unsigned long long)h2) + "-.*.log)"));
+}
+
+TEST(TEST_CMD_HANDLER, retransmittor_server_cmd_handler)
+{
+    auto run = []()
+    {
+        const std::size_t bulk_size{3};
+        async_server::Retransmittor retransmittor{bulk_size};
+
+        const std::size_t socket_addr_hash_1{1};
+        const std::size_t socket_addr_hash_2{2};
+
+        retransmittor.on_read({"If\n", sizeof("If\n"), socket_addr_hash_1});
+        retransmittor.on_read({"a\n", sizeof("a\n"), socket_addr_hash_2});
+        retransmittor.on_read({"search\n", sizeof("search\n"), socket_addr_hash_1});
+        retransmittor.on_read({"for\n", sizeof("for\n"), socket_addr_hash_1});
+        retransmittor.on_read({"{\nthe\nname\n", sizeof("{\nthe\nname\n"), socket_addr_hash_1});
+        retransmittor.on_read({"{\nget_return_object_on_allocation_failure\nin\n",
+                               sizeof("{\nget_return_object_on_allocation_failure\nin\n"), socket_addr_hash_2});
+        retransmittor.on_read({"}\n", sizeof("}\n"), socket_addr_hash_2});
+        retransmittor.on_read({"}\n", sizeof("}\n"), socket_addr_hash_1});
+    };
+    run();
+
+    ASSERT_TRUE(check(std::stringstream{"bulk: If, a, search\n"},
+                      "(bulk-.*-.*-.*.log)"));
+    ASSERT_TRUE(check(std::stringstream{"bulk: for\n"},
+                      "(bulk-.*-.*-.*.log)"));
+    ASSERT_TRUE(check(std::stringstream{"bulk: the, name\n"},
+                      "(bulk-.*-.*-.*.log)"));
+    ASSERT_TRUE(check(std::stringstream{"bulk: get_return_object_on_allocation_failure, in\n"},
+                      "(bulk-.*-.*-.*.log)"));
 }
 
 int main(int argc, char** argv)

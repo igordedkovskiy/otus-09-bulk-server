@@ -15,13 +15,6 @@ find_package(Boost COMPONENTS system REQUIRED)
 find_package(Threads REQUIRED)
 #list(APPEND EXTRA_LINKS ${CMAKE_THREAD_LIBS_INIT})
 
-add_executable(${PROJECT_NAME}
-    "main.cpp"
-    "asio_async_server.hpp"
-    "asio_async_server.cpp"
-    "retransmittor.hpp"
-    "retransmittor.cpp"
-)
 
 add_library(async_lib SHARED
     "async.h"
@@ -34,32 +27,51 @@ add_library(async_lib SHARED
     "read_input.cpp"
     "generator.hpp"
 )
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
-)
-
 set_target_properties(async_lib PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
 )
-
 target_include_directories(async_lib PRIVATE
     ${CMAKE_BINARY_DIR}
 )
 
+
+add_library(server_lib SHARED
+    "retransmittor.hpp"
+    "retransmittor.cpp"
+    "asio_async_server.hpp"
+    "asio_async_server.cpp"
+)
+set_target_properties(server_lib PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+target_include_directories(server_lib PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${Boost_INCLUDE_DIR}
+)
+target_link_libraries(server_lib PRIVATE
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${Boost_LIBRARIES}
+    async_lib
+)
+
+
+add_executable(${PROJECT_NAME} "main.cpp")
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_BINARY_DIR}
     ${Boost_INCLUDE_DIR}
 )
-
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    async_lib
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_LIBRARIES}
-#    ${EXTRA_LINKS}
+    server_lib
 )
+
 
 if(WITH_GTEST)
     find_package(GTest QUIET)
@@ -130,9 +142,11 @@ if(WITH_GTEST)
         gtest
         gtest_main
         async_lib
-#        ${EXTRA_LINKS}
+        server_lib
         ${CMAKE_THREAD_LIBS_INIT}
     )
+
+#    target_compile_definitions(test_async PRIVATE "-DUNIT_TEST")
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -154,6 +168,9 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(async_lib PRIVATE
         "-Wall" "-Wextra" "-Werror" "-pedantic" "-fcoroutines"
     )
+    target_compile_options(server_lib PRIVATE
+        "-Wall" "-Wextra" "-Werror" "-pedantic" "-fcoroutines"
+    )
     if(WITH_GTEST)
         target_compile_options(test_async PRIVATE
             "-Wall" "-Wextra" "-Werror" "-pedantic" "-fcoroutines"
@@ -161,6 +178,14 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     endif()
 
     if(WIN32)
+        target_link_libraries(test_async PRIVATE
+            wsock32
+            ws2_32
+        )
+        target_link_libraries(server_lib PRIVATE
+            wsock32
+            ws2_32
+        )
         target_link_libraries(${PROJECT_NAME} PRIVATE
             wsock32
             ws2_32
