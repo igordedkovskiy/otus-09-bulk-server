@@ -33,35 +33,35 @@ void session::start()
 
 void session::do_read()
 {
-    auto process = [self = shared_from_this()](boost::system::error_code ec, std::size_t length)
+    auto process = [this, self = shared_from_this()](boost::system::error_code ec, std::size_t length)
     {
         if(!ec)
         {
             try
             {
-                self->m_retransmittor.on_read({self->m_data, length, self->m_socket_addr_hash});
+                m_retransmittor.on_read({m_data, length, m_socket_addr_hash});
             }
             catch(CmdCollector::ParseErr& e)
             {
-                auto process = [self](boost::system::error_code ec, std::size_t /*length*/)
+                auto process = [this, self](boost::system::error_code ec, std::size_t /*length*/)
                 {
                     if(!ec)
-                        self->do_read();
+                        do_read();
                 };
-                boost::asio::async_write(self->m_socket,
+                boost::asio::async_write(m_socket,
                                          boost::asio::buffer("Incorrect format\n\0",
                                                              sizeof("Incorrect format\n\0")),
                                          process);
             }
-            self->do_read();
+            do_read();
         }
         else
         {
             if(ec == boost::asio::error::eof)
             {
 //                std::cout << __PRETTY_FUNCTION__ << std::endl;
-                self->m_retransmittor.on_socket_close(self->m_socket_addr_hash);
-                self->close();
+                m_retransmittor.on_socket_close(m_socket_addr_hash);
+                close();
             }
             //else if(ec == boost::asio::error::connection_reset)
         }
