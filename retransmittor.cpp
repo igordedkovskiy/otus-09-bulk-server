@@ -37,7 +37,7 @@ void Retransmittor::on_read(rc_data&& data)
             if(type == DataPreprocessor::BlockType::STATIC)
                 async::receive(m_static_bulks_handler, data.m_data.c_str() + start, end - start);
             else
-                async::receive(m_static_bulks_handler, data.m_data.c_str() + start, end - start);
+                async::receive(h, data.m_data.c_str() + start, end - start);
             start = end;
         }
     }
